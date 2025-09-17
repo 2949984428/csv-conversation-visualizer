@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV对话数据可视化工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 3rem;
+        }
+        
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .main-card {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .upload-area {
+            border: 3px dashed #d1d5db;
+            border-radius: 1rem;
+            padding: 3rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: #fafafa;
+        }
+        
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #667eea;
+            background: #f8fafc;
+            transform: scale(1.02);
+        }
+        
+        .upload-icon {
+            font-size: 4rem;
+            color: #9ca3af;
+            margin-bottom: 1rem;
+        }
+        
+        .upload-text {
+            font-size: 1.2rem;
+            color: #6b7280;
+            margin-bottom: 1rem;
+        }
+        
+        .upload-hint {
+            font-size: 0.9rem;
+            color: #9ca3af;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 0.5rem;
+        }
+        
+        .btn:hover {
+            background: #5a67d8;
+            transform: translateY(-1px);
+        }
+        
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-success {
+            background: #059669;
+        }
+        
+        .btn-success:hover {
+            background: #047857;
+        }
+        
+        .analysis-section {
+            display: none;
+            margin-top: 2rem;
+        }
+        
+        .analysis-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .file-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .info-card {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info-label {
+            font-size: 0.875rem;
+            color: #6b7280;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .info-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #374151;
+            margin-top: 0.25rem;
+        }
+        
+        .template-selector {
+            margin: 2rem 0;
+        }
+        
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .template-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .template-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+        
+        .template-card.selected {
+            border-color: #667eea;
+            background: #eff6ff;
+        }
+        
+        .template-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+        
+        .template-description {
+            color: #6b7280;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .template-features {
+            list-style: none;
+            margin-top: 1rem;
+        }
+        
+        .template-features li {
+            font-size: 0.8rem;
+            color: #059669;
+            margin: 0.25rem 0;
+        }
+        
+        .template-features li:before {
+            content: "✓";
+            color: #059669;
+            margin-right: 0.5rem;
+            font-weight: bold;
+        }
+        
+        .column-selector {
+            display: none;
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 0.5rem;
+        }
+        
+        .column-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .column-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+        
+        .preview-section {
+            display: none;
+            margin-top: 2rem;
+            background: #f8fafc;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .status-message {
+            text-align: center;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0.5rem;
+            font-weight: 500;
+        }
+        
+        .status-success {
+            background: #d1fae5;
+            color: #059669;
+            border: 1px solid #a7f3d0;
+        }
+        
+        .status-error {
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+        
+        .status-info {
+            background: #dbeafe;
+            color: #2563eb;
+            border: 1px solid #93c5fd;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 1rem 0;
+            display: none;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: #667eea;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, .3);
+            border-radius: 50%;
+            border-top-color: #667eea;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>CSV对话数据可视化工具</h1>
+            <p>专业版 - 上传CSV文件，自动生成美观的对话数据展示页面</p>
+        </div>
+        
+        <div class="main-card">
+            <!-- 文件上传区域 -->
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📊</div>
+                <div class="upload-text">点击选择CSV文件或拖拽文件到此处</div>
+                <div class="upload-hint">支持.csv格式文件，最大100MB</div>
+                <input type="file" id="fileInput" class="file-input" accept=".csv" />
+            </div>
+            
+            <!-- 进度条 -->
+            <div class="progress-bar" id="progressBar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            
+            <!-- 状态消息 -->
+            <div id="statusMessage" class="status-message" style="display: none;"></div>
+            
+            <!-- 文件分析结果 -->
+            <div class="analysis-section" id="analysisSection">
+                <div class="analysis-header">
+                    <h2>文件分析结果</h2>
+                    <button class="btn" onclick="resetUpload()">重新选择文件</button>
+                </div>
+                
+                <div class="file-info" id="fileInfo">
+                    <!-- 文件信息将在这里动态生成 -->
+                </div>
+                
+                <!-- 模板选择 -->
+                <div class="template-selector">
+                    <h3>选择展示模板</h3>
+                    <div class="template-grid" id="templateGrid">
+                        <div class="template-card" data-template="single-turn">
+                            <div class="template-title">单轮对话展示</div>
+                            <div class="template-description">适用于独立的单次对话任务，每条记录展示一次完整的交互</div>
+                            <ul class="template-features">
+                                <li>清晰的表格展示</li>
+                                <li>图片视频预览下载</li>
+                                <li>AI处理步骤展示</li>
+                                <li>搜索和分页功能</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="template-card" data-template="multi-turn">
+                            <div class="template-title">多轮对话展示</div>
+                            <div class="template-description">适用于有会话关联的多轮对话，按SessionID分组展示</div>
+                            <ul class="template-features">
+                                <li>会话线程分组</li>
+                                <li>时间线展示</li>
+                                <li>对话轮次编号</li>
+                                <li>可展开查看详情</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="template-card" data-template="custom">
+                            <div class="template-title">自定义展示</div>
+                            <div class="template-description">手动选择要展示的列，创建个性化的数据视图</div>
+                            <ul class="template-features">
+                                <li>自由选择展示列</li>
+                                <li>灵活的布局设计</li>
+                                <li>适配任意CSV结构</li>
+                                <li>支持媒体文件展示</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 列选择器（自定义模板时显示） -->
+                <div class="column-selector" id="columnSelector">
+                    <h4>选择要展示的列</h4>
+                    <div class="column-grid" id="columnGrid">
+                        <!-- 列选择器将在这里动态生成 -->
+                    </div>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div class="action-buttons">
+                    <button class="btn" id="previewBtn" onclick="generatePreview()" disabled>生成预览</button>
+                    <button class="btn btn-success" id="downloadBtn" onclick="downloadHTML()" disabled>下载HTML文件</button>
+                </div>
+                
+                <!-- 预览区域 -->
+                <div class="preview-section" id="previewSection">
+                    <h4>数据预览</h4>
+                    <div id="previewContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
