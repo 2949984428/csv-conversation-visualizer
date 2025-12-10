@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>R2 上传测试</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>R2 客户端直传测试</h1>
+
+    <input type="file" id="fileInput" accept=".csv">
+    <button onclick="testUpload()">测试上传</button>
+
+    <div id="log" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc; min-height: 200px; font-family: monospace; white-space: pre-wrap;"></div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+        }
+
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                log('❌ 请先选择文件');
+                return;
+            }
+
+            log(`📁 选择文件: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+
+            try {
+                // 步骤 1: 获取预签名 URL
+                log('🔄 步骤 1: 请求预签名 URL...');
+                const urlResponse = await fetch('/api/get-upload-url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        fileName: file.name,
+                        fileSize: file.size,
+                        contentType: file.type || 'text/csv',
+                    }),
+                });
+
+                if (!urlResponse.ok) {
+                    throw new Error(`获取上传 URL 失败: ${urlResponse.status}`);
+                }
+
+                const { uploadUrl, publicUrl, key } = await urlResponse.json();
+                log(`✅ 获取到预签名 URL`);
+                log(`   文件键: ${key}`);
+                log(`   公共 URL: ${publicUrl}`);
+
+                // 步骤 2: 直接上传到 R2
+                log('🔄 步骤 2: 上传文件到 R2...');
+                log(`   目标: ${uploadUrl.split('?')[0]}`);
+
+                const uploadResponse = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    body: file,
+                    headers: {
+                        'Content-Type': file.type || 'text/csv',
+                    },
+                });
+
+                if (!uploadResponse.ok) {
+                    const errorText = await uploadResponse.text();
+                    throw new Error(`R2 上传失败: ${uploadResponse.status}\n${errorText}`);
+                }
+
+                log(`✅ 上传成功！`);
+                log(`   文件已保存到: ${publicUrl}`);
+                log(`\n🎉 测试完成！`);
+
+            } catch (error) {
+                log(`❌ 错误: ${error.message}`);
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>
