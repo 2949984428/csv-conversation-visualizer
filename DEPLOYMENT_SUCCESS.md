@@ -119,7 +119,7 @@ git push origin main
 
 - **前端**: 纯 HTML + CSS + JavaScript（Claude 风格设计）
 - **部署**: Vercel（静态站点 + Serverless Functions）
-- **存储**: 
+- **存储**:
   - localStorage（主存储）
   - Cloudflare R2（云备份，S3 兼容）
 - **依赖**: @aws-sdk/client-s3（R2 集成）
