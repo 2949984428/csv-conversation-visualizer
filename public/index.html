@@ -1,0 +1,2837 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV 数据分析工作室</title>
+    <!--
+    ⚠️ 本地使用提示：
+    如果您直接打开此 HTML 文件，AI 分析功能可能无法正常工作。
+
+    推荐使用方式：
+    1. 访问 Vercel 线上版本（推荐）:
+       https://csv-visualizer-one.vercel.app
+
+    2. 或启动本地开发服务器:
+       npm run dev
+       然后访问 http://localhost:3000
+
+    详细说明请查看：本地使用说明.md
+    -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Merriweather:ital,wght@0,300;0,700;1,300&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        /* ==================== Claude Style Variables ==================== */
+        :root {
+            --bg-app: #F5F4F1;
+            --bg-panel: #FFFFFF;
+            --bg-sidebar: #EBEAE8;
+            --text-primary: #2D2D2D;
+            --text-secondary: #666666;
+            --text-accent: #DA7756;
+            --border-subtle: #E0E0E0;
+            --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+            --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.08);
+            --radius-sm: 6px;
+            --radius-md: 12px;
+            --radius-lg: 18px;
+            --font-serif: "Merriweather", "Georgia", serif;
+            --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-app);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            margin: 0;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ==================== Layout ==================== */
+        .app-container {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            min-height: 100vh;
+        }
+
+        /* ==================== Sidebar ==================== */
+        .sidebar {
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 32px 24px 24px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .sidebar-title {
+            font-family: var(--font-serif);
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .sidebar-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .nav-section {
+            padding: 16px 0;
+        }
+
+        .nav-label {
+            padding: 8px 24px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 24px;
+            margin: 4px 12px;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.95rem;
+            gap: 12px;
+        }
+
+        .nav-item:hover {
+            background-color: rgba(255, 255, 255, 0.5);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background-color: var(--bg-panel);
+            color: var(--text-primary);
+            font-weight: 600;
+            box-shadow: var(--shadow-card);
+        }
+
+        .nav-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ==================== Main Content ==================== */
+        .main-content {
+            padding: 40px;
+            overflow-y: auto;
+            max-height: 100vh;
+        }
+
+        .view-section {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ==================== Upload Area ==================== */
+        .upload-zone {
+            background: var(--bg-panel);
+            border: 2px dashed var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 60px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 32px;
+        }
+
+        .upload-zone:hover, .upload-zone.highlight {
+            border-color: var(--text-accent);
+            background-color: rgba(218, 119, 86, 0.02);
+        }
+
+        .upload-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            color: var(--text-secondary);
+        }
+
+        .upload-title {
+            font-family: var(--font-serif);
+            font-size: 1.3rem;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .upload-subtitle {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* ==================== Thread Viewer ==================== */
+        .thread-viewer {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 32px;
+            height: calc(100vh - 80px);
+        }
+
+        .thread-list {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            overflow-y: auto;
+            box-shadow: var(--shadow-card);
+        }
+
+        .thread-list-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            background: #FAFAFA;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .thread-list-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .thread-count {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .thread-item {
+            padding: 16px 20px;
+            border-bottom: 1px solid #F5F5F5;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .thread-item:hover {
+            background: #FAFAFA;
+            color: var(--text-primary);
+        }
+
+        .thread-item.active {
+            background: rgba(218, 119, 86, 0.08);
+            color: var(--text-accent);
+            border-left: 3px solid var(--text-accent);
+        }
+
+        .thread-content {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 32px;
+            overflow-y: auto;
+            box-shadow: var(--shadow-card);
+        }
+
+        .thread-header {
+            margin-bottom: 32px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #F5F5F5;
+        }
+
+        .thread-id-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .thread-id-value {
+            font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+            font-size: 1rem;
+            color: var(--text-accent);
+            background: rgba(218, 119, 86, 0.08);
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            display: inline-block;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .thread-id-value:hover {
+            background: rgba(218, 119, 86, 0.15);
+        }
+
+        .message-card {
+            background: #FFFFFF;
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #F5F5F5;
+        }
+
+        .message-meta {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .turn-badge {
+            background: #F0F0F0;
+            color: var(--text-secondary);
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .timestamp {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .message-text {
+            font-size: 0.95rem;
+            line-height: 1.7;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .image-wrapper {
+            position: relative;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            border: 1px solid var(--border-subtle);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .image-wrapper:hover {
+            transform: scale(1.02);
+            box-shadow: var(--shadow-float);
+        }
+
+        .image-wrapper img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .download-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            transition: all 0.2s;
+        }
+
+        .download-btn:hover {
+            background: white;
+            box-shadow: var(--shadow-card);
+        }
+
+        .ai-analyze-btn {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(218, 119, 86, 0.95);
+            border: 1px solid var(--text-accent);
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: white;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .ai-analyze-btn:hover {
+            background: var(--text-accent);
+            box-shadow: var(--shadow-float);
+        }
+
+        .btn-start-analysis {
+            background: linear-gradient(135deg, var(--text-accent), #e89b7d);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-card);
+        }
+
+        .btn-start-analysis:hover {
+            box-shadow: var(--shadow-float);
+            transform: translateY(-2px);
+        }
+
+        .btn-start-analysis:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .ai-result-card {
+            background: #F7F7F5;
+            border: 1px solid var(--border-subtle);
+            border-left: 4px solid var(--text-accent);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            margin-top: 16px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .ai-result-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ai-result-content {
+            font-size: 0.9rem;
+            line-height: 1.7;
+            color: var(--text-secondary);
+        }
+
+        .ai-loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border-subtle);
+            border-top-color: var(--text-accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* 分析进度面板 */
+        .analysis-progress-panel {
+            background: white;
+            border: 2px solid var(--text-accent);
+            border-radius: var(--radius-lg);
+            padding: 40px;
+            max-width: 600px;
+            margin: 60px auto;
+            box-shadow: var(--shadow-float);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .analysis-progress-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .analysis-progress-spinner {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 3px solid #f0f0f0;
+            border-top-color: var(--text-accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .analysis-progress-steps {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .analysis-progress-step {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            background: #f9f9f9;
+            border-radius: var(--radius-md);
+            transition: all 0.3s ease;
+        }
+
+        .analysis-progress-step.active {
+            background: rgba(218, 119, 86, 0.1);
+            border-left: 4px solid var(--text-accent);
+        }
+
+        .analysis-progress-step.completed {
+            opacity: 0.6;
+        }
+
+        .analysis-progress-step-icon {
+            font-size: 1.5rem;
+            min-width: 32px;
+            text-align: center;
+        }
+
+        .analysis-progress-step-text {
+            flex: 1;
+        }
+
+        .analysis-progress-step-label {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .analysis-progress-step-desc {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .analysis-progress-stats {
+            display: flex;
+            gap: 24px;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .analysis-progress-stat {
+            flex: 1;
+            text-align: center;
+        }
+
+        .analysis-progress-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-accent);
+        }
+
+        .analysis-progress-stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ==================== Analytics View ==================== */
+        .analytics-header {
+            margin-bottom: 32px;
+        }
+
+        .analytics-title {
+            font-family: var(--font-serif);
+            font-size: 2rem;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        .analytics-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .kpi-card {
+            background: var(--bg-panel);
+            padding: 24px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+            box-shadow: var(--shadow-card);
+        }
+
+        .kpi-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .kpi-value {
+            font-family: var(--font-serif);
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .ai-summary {
+            background-color: #F7F7F5;
+            border-radius: var(--radius-md);
+            padding: 24px;
+            border-left: 4px solid var(--text-accent);
+            margin-bottom: 32px;
+        }
+
+        .ai-summary-title {
+            font-weight: 600;
+            margin-bottom: 12px;
+            font-size: 1rem;
+            color: var(--text-primary);
+        }
+
+        .ai-summary p {
+            margin: 0;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        .chart-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .chart-title {
+            font-family: var(--font-serif);
+            font-size: 1.3rem;
+            margin-bottom: 24px;
+            color: var(--text-primary);
+        }
+
+        .chart-placeholder {
+            background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(240,240,240,0.3) 100%);
+            height: 320px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            border: 1px dashed var(--border-subtle);
+            font-size: 0.9rem;
+        }
+
+        /* ==================== Back Button ==================== */
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            background: none;
+            border: none;
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 24px;
+        }
+
+        .back-button:hover {
+            background: var(--bg-sidebar);
+            color: var(--text-primary);
+        }
+
+        .back-button svg {
+            color: var(--text-secondary);
+            transition: color 0.2s ease;
+        }
+
+        .back-button:hover svg {
+            color: var(--text-primary);
+        }
+
+        .analytics-dynamic-header {
+            margin-bottom: 32px;
+        }
+
+        .analytics-dynamic-header h1 {
+            font-family: var(--font-serif);
+            font-size: 2rem;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .analytics-dynamic-header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .thread-summary-card-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .thread-summary-card-id {
+            font-family: var(--font-sans);
+            color: var(--text-accent);
+            background: rgba(218, 119, 86, 0.08);
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .thread-summary-card-stats {
+            margin-left: 12px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .thread-summary-card-prompt {
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        /* ==================== Loading Overlay ==================== */
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(245, 244, 241, 0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        #loading-overlay.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border-subtle);
+            border-top-color: var(--text-accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ==================== Cluster/Category Cards (for Scene Analysis) ==================== */
+        .cluster-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .cluster-card {
+            background: var(--bg-panel);
+            padding: 24px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+            box-shadow: var(--shadow-card);
+            transition: all 0.2s ease;
+        }
+
+        .cluster-card.clickable-card {
+            cursor: pointer;
+        }
+
+        .cluster-card.clickable-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-float);
+            border-color: var(--text-accent);
+        }
+
+        .cluster-header {
+            display: flex;
+            justify-content: space_between;
+            align_items: center;
+            margin-bottom: 16px;
+        }
+
+        .cluster-title {
+            font-family: var(--font-serif);
+            font-size: 1.2rem;
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .cluster-stat {
+            background: var(--bg-sidebar);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        /* ==================== Breadcrumbs ==================== */
+        .breadcrumb {
+            display: flex;
+            align_items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .breadcrumb-item {
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: color 0.2s ease;
+        }
+
+        .breadcrumb-item:hover {
+            color: var(--text-accent);
+        }
+
+        .breadcrumb-separator {
+            color: var(--border-subtle);
+        }
+
+        .breadcrumb-current {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* ==================== Back Button ==================== */
+        .back-button {
+            display: inline-flex;
+            align_items: center;
+            background: none;
+            border: none;
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 24px;
+        }
+
+        .back-button:hover {
+            background: var(--bg-sidebar);
+            color: var(--text-primary);
+        }
+
+        .back-button svg {
+            color: var(--text-secondary);
+            transition: color 0.2s ease;
+        }
+
+        .back-button:hover svg {
+            color: var(--text-primary);
+        }
+
+        /* ==================== Empty State ==================== */
+        .empty-state {
+            text-align: center;
+            padding: 80px 40px;
+            color: var(--text-secondary);
+        }
+
+        .empty-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px;
+            opacity: 0.3;
+        }
+
+        .empty-title {
+            font-family: var(--font-serif);
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        .empty-text {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        /* ==================== Analytics View Switching ==================== */
+        .analytics-view {
+            display: none;
+        }
+
+        .analytics-view.active {
+            display: block;
+        }
+
+        /* ==================== Upload History ==================== */
+        .history-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+            margin-top: 32px;
+        }
+
+        .history-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .history-card:hover {
+            box-shadow: var(--shadow-float);
+            border-color: var(--text-accent);
+            transform: translateY(-2px);
+        }
+
+        .history-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .history-card-icon {
+            font-size: 2rem;
+            flex-shrink: 0;
+        }
+
+        .history-card-title {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .history-card-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .history-card-size {
+            background: #E8F4F8;
+            color: #0288D1;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .history-card-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .history-btn {
+            flex: 1;
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font-sans);
+        }
+
+        .history-btn-primary {
+            background: var(--text-accent);
+            color: white;
+        }
+
+        .history-btn-primary:hover {
+            background: #C76646;
+            transform: translateY(-1px);
+        }
+
+        .history-btn-secondary {
+            background: var(--bg-app);
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .history-btn-secondary:hover {
+            background: var(--bg-sidebar);
+        }
+
+        .history-btn-danger {
+            background: #FFEBEE;
+            color: #C62828;
+        }
+
+        .history-btn-danger:hover {
+            background: #FFCDD2;
+        }
+
+        /* ==================== Responsive ==================== */
+        @media (max-width: 1024px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                display: none;
+            }
+
+            .thread-viewer {
+                grid-template-columns: 1fr;
+            }
+
+            .thread-list {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <!-- ==================== Sidebar ==================== -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">分析工作室</div>
+            <div class="sidebar-subtitle">CSV 对话查看器</div>
+        </div>
+
+        <nav class="nav-section">
+            <div class="nav-label">导航菜单</div>
+            <div class="nav-item active" onclick="switchView('upload', event)">
+                <div class="nav-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                </div>
+                上传数据
+            </div>
+            <div class="nav-item" id="nav-viewer" onclick="switchView('viewer', event)" style="display: none;">
+                <div class="nav-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                </div>
+                对话查看器
+            </div>
+            <div class="nav-item" id="nav-analytics" onclick="switchView('analytics', event)" style="display: none;">
+                <div class="nav-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                </div>
+                数据分析
+            </div>
+            <div class="nav-item" id="nav-history" onclick="switchView('history', event)">
+                <div class="nav-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 3h18v18H3zM21 9H3M9 21V9"></path>
+                        <path d="M3 3l18 18M21 3L3 21" style="opacity: 0.3"></path>
+                    </svg>
+                </div>
+                上传历史
+            </div>
+        </nav>
+    </aside>
+
+    <!-- ==================== Main Content ==================== -->
+    <main class="main-content">
+
+        <!-- ==================== Upload View ==================== -->
+        <section id="view-upload" class="view-section active">
+            <div class="analytics-header">
+                <h1 class="analytics-title">欢迎使用分析工作室</h1>
+                <p class="analytics-subtitle">上传您的 CSV 文件以开始分析对话线程并可视化数据洞察</p>
+            </div>
+
+            <div class="upload-zone" id="drop-area">
+                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <div class="upload-title">拖拽 CSV 文件到此处</div>
+                <div class="upload-subtitle">或点击选择文件 • 最大文件大小：50MB</div>
+                <input type="file" id="file-input" accept=".csv" style="display: none;">
+            </div>
+
+            <div class="ai-summary">
+                <div class="ai-summary-title">💡 功能说明</div>
+                <p><strong>对话查看器：</strong> 按 thread_id 浏览对话，按时间顺序查看消息，下载图片。</p>
+                <p><strong>数据分析：</strong> 分析对话模式、消息分布以及 CSV 数据的关键指标。</p>
+            </div>
+        </section>
+
+        <!-- ==================== Thread Viewer ==================== -->
+        <section id="view-viewer" class="view-section">
+            <div class="thread-viewer">
+                <div class="thread-list">
+                    <div class="thread-list-header">
+                        <div class="thread-list-title">对话列表</div>
+                        <div class="thread-count" id="thread-count">已加载 0 个对话</div>
+                    </div>
+                    <div id="sidebar"></div>
+                </div>
+
+                <div class="thread-content">
+                    <div id="main-content" class="empty-state">
+                        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                        <div class="empty-title">选择一个对话</div>
+                        <div class="empty-text">从左侧列表中选择一个对话线程以查看内容</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== Analytics View ==================== -->
+        <section id="view-analytics" class="view-section">
+            <!-- 静态总览页面（默认显示）-->
+            <div id="analytics-overview" class="analytics-view active">
+                <div class="analytics-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h1 class="analytics-title">数据分析总览</h1>
+                        <p class="analytics-subtitle">从您的对话数据中获取洞察和模式</p>
+                    </div>
+                    <button id="btn-start-analysis" class="btn-start-analysis" onclick="startAIAnalysis()" style="display: none;">
+                        🤖 开始 AI 分析
+                    </button>
+                </div>
+
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-label">总对话数</div>
+                        <div class="kpi-value" id="kpi-threads">-</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">总消息数</div>
+                        <div class="kpi-value" id="kpi-messages">-</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">平均消息数/对话</div>
+                        <div class="kpi-value" id="kpi-avg">-</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">分享图片数</div>
+                        <div class="kpi-value" id="kpi-images">-</div>
+                    </div>
+                </div>
+
+                <div class="ai-summary">
+                    <div class="ai-summary-title">📊 关键洞察</div>
+                    <p id="insight-text">加载 CSV 数据以查看分析洞察...</p>
+                </div>
+
+                <!-- 场景分类入口 -->
+                <div style="margin-top: 40px;">
+                    <h2 style="font-family: var(--font-serif); margin-bottom: 24px;">按场景分析</h2>
+                    <div class="cluster-grid" id="category-grid">
+                        <!-- 动态加载场景分类卡片 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 动态内容容器（用于场景钻取）-->
+            <div id="analytics-dynamic" class="analytics-view">
+                <!-- 面包屑导航 -->
+                <div id="analytics-breadcrumb" class="breadcrumb"></div>
+
+                <!-- 动态内容挂载点 -->
+                <div id="analytics-content"></div>
+            </div>
+        </section>
+
+        <!-- ==================== Upload History View ==================== -->
+        <section id="view-history" class="view-section">
+            <div class="analytics-header">
+                <h1 class="analytics-title">上传历史</h1>
+                <p class="analytics-subtitle">查看和管理您上传到云端的 CSV 文件</p>
+            </div>
+
+            <div id="history-list" class="history-grid">
+                <!-- 历史记录将在这里动态生成 -->
+                <div class="ai-summary" style="text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 3rem; margin-bottom: 16px;">📂</div>
+                    <div style="font-size: 1.1rem; color: var(--text-secondary);">暂无上传历史</div>
+                    <p style="margin-top: 8px; color: var(--text-secondary); font-size: 0.9rem;">
+                        上传 CSV 文件后，历史记录将显示在这里
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay">
+    <div class="spinner"></div>
+</div>
+
+<script>
+// ==================== Global State ====================
+let globalThreads = {};
+let currentView = 'upload';
+
+// ==================== File Upload ====================
+const dropArea = document.getElementById('drop-area');
+const fileInput = document.getElementById('file-input');
+const loadingOverlay = document.getElementById('loading-overlay');
+
+dropArea.addEventListener('click', () => fileInput.click());
+dropArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropArea.classList.add('highlight');
+});
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('highlight'));
+dropArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropArea.classList.remove('highlight');
+    handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+function handleFile(file) {
+    if (!file || !file.name.endsWith('.csv')) {
+        alert('请上传有效的 CSV 文件。');
+        return;
+    }
+
+    loadingOverlay.classList.add('active');
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const csvText = e.target.result;
+        processData(csvText);
+        loadingOverlay.classList.remove('active');
+
+        // 添加到历史记录
+        addToHistory(file, globalThreads);
+
+        // Show navigation items
+        document.getElementById('nav-viewer').style.display = 'flex';
+        document.getElementById('nav-analytics').style.display = 'flex';
+
+        // Auto-switch to viewer (without event, so we manually update nav)
+        currentView = 'viewer';
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('nav-viewer').classList.add('active');
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.getElementById('view-viewer').classList.add('active');
+    };
+    reader.readAsText(file);
+}
+
+// ==================== CSV Parser ====================
+function processData(csvText) {
+    // Remove BOM if present
+    if (csvText.charCodeAt(0) === 0xFEFF) {
+        csvText = csvText.substring(1);
+    }
+
+    const lines = [];
+    let currentLine = '';
+    let insideQuotes = false;
+
+    // Parse CSV handling quoted fields
+    for (let i = 0; i < csvText.length; i++) {
+        const char = csvText[i];
+        const nextChar = csvText[i + 1];
+
+        if (char === '"' && nextChar === '"') {
+            currentLine += '"';
+            i++; // Skip next quote
+        } else if (char === '"') {
+            insideQuotes = !insideQuotes;
+            currentLine += char;
+        } else if ((char === '\n' || char === '\r') && !insideQuotes) {
+            if (currentLine.trim()) {
+                lines.push(currentLine);
+            }
+            currentLine = '';
+            if (char === '\r' && nextChar === '\n') i++;
+        } else {
+            currentLine += char;
+        }
+    }
+    if (currentLine.trim()) lines.push(currentLine);
+
+    if (lines.length === 0) {
+        alert('CSV 文件为空。');
+        return;
+    }
+
+    // Parse header
+    let headers = lines[0].split(',').map(h =>
+        h.trim().replace(/^["']|["']$/g, '').replace(/ /g, '_').toLowerCase()
+    );
+
+    console.log('Headers found:', headers);
+
+    // Parse rows
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+        const row = parseCSVLine(lines[i]);
+        if (row.length === headers.length) {
+            const obj = {};
+            headers.forEach((h, idx) => obj[h] = row[idx]);
+            rows.push(obj);
+        }
+    }
+
+    console.log(`Total messages: ${rows.length}`);
+    organizeThreads(rows);
+}
+
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let insideQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+
+        if (char === '"' && nextChar === '"') {
+            current += '"';
+            i++;
+        } else if (char === '"') {
+            insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    result.push(current.trim());
+    return result.map(field => field.replace(/^["']|["']$/g, ''));
+}
+
+// ==================== Thread Organization ====================
+function organizeThreads(rows) {
+    globalThreads = {};
+
+    rows.forEach(row => {
+        const threadId = row.thread_id;
+        if (!threadId) return;
+
+        if (!globalThreads[threadId]) {
+            globalThreads[threadId] = [];
+        }
+
+        globalThreads[threadId].push({
+            timestamp: row.timestamp || '',
+            text: row.text || '',
+            image_list: row.image_list || '[]',
+            row_num: parseInt(row.row_num) || 0
+        });
+    });
+
+    // Sort messages by row_num
+    Object.keys(globalThreads).forEach(threadId => {
+        globalThreads[threadId].sort((a, b) => a.row_num - b.row_num);
+    });
+
+    console.log(`Unique threads: ${Object.keys(globalThreads).length}`);
+    renderSidebar();
+    calculateAnalytics();
+}
+
+// ==================== Sidebar Rendering ====================
+function renderSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const threadIds = Object.keys(globalThreads);
+
+    document.getElementById('thread-count').textContent = `已加载 ${threadIds.length} 个对话`;
+
+    sidebar.innerHTML = threadIds.map(threadId =>
+        `<div class="thread-item" onclick="selectThread('${threadId}')">${threadId}</div>`
+    ).join('');
+}
+
+// ==================== Thread Selection ====================
+function selectThread(threadId) {
+    // Update sidebar selection
+    document.querySelectorAll('.thread-item').forEach(el => el.classList.remove('active'));
+    event.target.classList.add('active');
+
+    renderThreadContent(threadId);
+}
+
+function renderThreadContent(threadId) {
+    const messages = globalThreads[threadId];
+    const container = document.getElementById('main-content');
+
+    let html = `
+        <div class="thread-header">
+            <div class="thread-id-label">对话 ID</div>
+            <div class="thread-id-value" onclick="copyToClipboard('${threadId}')" title="点击复制">
+                ${threadId}
+            </div>
+        </div>
+    `;
+
+    messages.forEach(msg => {
+        html += `
+            <div class="message-card">
+                <div class="message-header">
+                    <div class="message-meta">
+                        <span class="turn-badge">第 ${msg.row_num} 轮</span>
+                        <span class="timestamp">${msg.timestamp}</span>
+                    </div>
+                </div>
+                <div class="message-text">${escapeHtml(msg.text)}</div>
+        `;
+
+        // 解析并显示图片
+        try {
+            // 清理和解析 image_list
+            let imageListStr = msg.image_list || '[]';
+
+            // 移除可能的引号包裹
+            imageListStr = imageListStr.trim().replace(/^["']|["']$/g, '');
+
+            // 处理 CSV 中的双引号转义: "" -> "
+            imageListStr = imageListStr.replace(/""/g, '"');
+
+            // 修复非标准JSON格式：{image_url:xxx} -> {"image_url":"xxx"}
+            // 1. 为属性名添加引号: image_url -> "image_url"
+            imageListStr = imageListStr.replace(/(\{|,)\s*image_url\s*:/g, '$1"image_url":');
+
+            // 2. 为URL值添加引号: :https://... -> :"https://..."
+            imageListStr = imageListStr.replace(/"image_url"\s*:\s*([^"}\s][^},}]*)/g, '"image_url":"$1"');
+
+            // 检查是否为空或无效
+            if (imageListStr && imageListStr !== '[]' && imageListStr !== '') {
+                const images = JSON.parse(imageListStr);
+
+                if (images && Array.isArray(images) && images.length > 0) {
+                    html += '<div class="image-grid">';
+                    images.forEach((img, idx) => {
+                        if (img && img.image_url) {
+                            const imageId = `img-${threadId}-${msg.row_num}-${idx}`;
+                            html += `
+                                <div class="image-wrapper" id="wrapper-${imageId}">
+                                    <img src="${img.image_url}" alt="图片 ${idx + 1}" loading="lazy"
+                                         onerror="this.parentElement.innerHTML='<div style=\\'padding:20px;color:#999;text-align:center;\\'>图片加载失败</div>'">
+                                    <button class="download-btn" onclick="downloadImage('${img.image_url}', 'thread-${threadId}-turn-${msg.row_num}-img-${idx + 1}.png')">
+                                        ⬇ 下载
+                                    </button>
+                                </div>
+                            `;
+                        }
+                    });
+                    html += '</div>';
+                }
+            }
+        } catch (e) {
+            console.error('Error parsing image_list for row', msg.row_num, ':', e, 'Raw value:', msg.image_list);
+        }
+
+        html += '</div>';
+    });
+
+    container.innerHTML = html;
+}
+
+// ==================== Analytics Calculation ====================
+let chartDistribution, chartTimeline, chartTopThreads;
+
+// 场景分析数据库（三层结构）
+const SceneDB = {};
+let currentCategory = null;
+let currentCluster = null;
+let currentSubCluster = null;
+
+function calculateAnalytics() {
+    const threadIds = Object.keys(globalThreads);
+    const totalThreads = threadIds.length;
+    let totalMessages = 0;
+    let totalImages = 0;
+    const threadMessageCounts = {};
+    const timelineData = {};
+
+    threadIds.forEach(threadId => {
+        const messages = globalThreads[threadId];
+        totalMessages += messages.length;
+        threadMessageCounts[threadId] = messages.length;
+
+        messages.forEach(msg => {
+            // Count images
+            try {
+                let imageListStr = (msg.image_list || '[]').trim().replace(/^["']|["']$/g, '').replace(/""/g, '"');
+                imageListStr = imageListStr.replace(/(\{|,)\s*image_url\s*:/g, '$1"image_url":');
+                imageListStr = imageListStr.replace(/"image_url"\s*:\s*([^"}\s][^},}]*)/g, '"image_url":"$1"');
+
+                if (imageListStr && imageListStr !== '[]') {
+                    const images = JSON.parse(imageListStr);
+                    totalImages += images.length;
+                }
+            } catch (e) {}
+
+            // Group by date for timeline
+            if (msg.timestamp) {
+                const date = msg.timestamp.split(' ')[0]; // Extract date part
+                timelineData[date] = (timelineData[date] || 0) + 1;
+            }
+        });
+    });
+
+    const avgMessages = (totalMessages / totalThreads).toFixed(1);
+
+    // Update KPIs
+    document.getElementById('kpi-threads').textContent = totalThreads.toLocaleString();
+    document.getElementById('kpi-messages').textContent = totalMessages.toLocaleString();
+    document.getElementById('kpi-avg').textContent = avgMessages;
+    document.getElementById('kpi-images').textContent = totalImages.toLocaleString();
+
+    // Update insights
+    const mostActiveThread = Object.entries(threadMessageCounts).sort((a, b) => b[1] - a[1])[0];
+    const mostActiveCount = mostActiveThread ? mostActiveThread[1] : 0;
+
+    document.getElementById('insight-text').innerHTML = `
+        在加载的 <strong>${totalThreads} 个对话线程</strong>中，共包含 <strong>${totalMessages} 条消息</strong>。
+        平均每个线程有 <strong>${avgMessages} 条消息</strong>。
+        用户共分享了 <strong>${totalImages} 张图片</strong>。
+        最活跃的对话线程包含 <strong>${mostActiveCount} 条消息</strong>。
+    `;
+
+    // Render charts (移除，改为场景分析)
+    // renderDistributionChart(threadMessageCounts);
+    // renderTimelineChart(timelineData);
+    // renderTopThreadsChart(threadMessageCounts);
+
+    // 显示初始状态（等待用户点击"开始分析"）
+    renderInitialAnalyticsState();
+}
+
+// 1. Message Distribution Chart (Histogram)
+function renderDistributionChart(threadMessageCounts) {
+    const messageCounts = Object.values(threadMessageCounts);
+    const distribution = {};
+
+    // Group into buckets: 1-5, 6-10, 11-15, 16-20, 21+
+    messageCounts.forEach(count => {
+        let bucket;
+        if (count <= 5) bucket = '1-5';
+        else if (count <= 10) bucket = '6-10';
+        else if (count <= 15) bucket = '11-15';
+        else if (count <= 20) bucket = '16-20';
+        else bucket = '21+';
+
+        distribution[bucket] = (distribution[bucket] || 0) + 1;
+    });
+
+    const labels = ['1-5', '6-10', '11-15', '16-20', '21+'];
+    const data = labels.map(label => distribution[label] || 0);
+
+    const ctx = document.getElementById('chart-distribution');
+
+    // Destroy old chart if exists
+    if (chartDistribution) chartDistribution.destroy();
+
+    chartDistribution = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '线程数量',
+                data: data,
+                backgroundColor: 'rgba(218, 119, 86, 0.6)',
+                borderColor: '#DA7756',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: true,
+                    text: '每个线程的消息数量分布',
+                    font: { size: 14, family: 'Inter' }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: '消息数量范围'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// 2. Timeline Activity Chart
+function renderTimelineChart(timelineData) {
+    const sortedDates = Object.keys(timelineData).sort();
+    const counts = sortedDates.map(date => timelineData[date]);
+
+    const ctx = document.getElementById('chart-timeline');
+
+    if (chartTimeline) chartTimeline.destroy();
+
+    chartTimeline = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: sortedDates,
+            datasets: [{
+                label: '消息数量',
+                data: counts,
+                fill: true,
+                backgroundColor: 'rgba(218, 119, 86, 0.1)',
+                borderColor: '#DA7756',
+                borderWidth: 2,
+                tension: 0.4,
+                pointRadius: 3,
+                pointBackgroundColor: '#DA7756'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: true,
+                    text: '每日消息活跃度',
+                    font: { size: 14, family: 'Inter' }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '消息数'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: '日期'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// 3. Top 10 Active Threads
+function renderTopThreadsChart(threadMessageCounts) {
+    const sorted = Object.entries(threadMessageCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+
+    const labels = sorted.map(([id, _]) => id.substring(0, 8) + '...');
+    const data = sorted.map(([_, count]) => count);
+
+    const ctx = document.getElementById('chart-top-threads');
+
+    if (chartTopThreads) chartTopThreads.destroy();
+
+    chartTopThreads = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '消息数',
+                data: data,
+                backgroundColor: 'rgba(218, 119, 86, 0.6)',
+                borderColor: '#DA7756',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: true,
+                    text: 'Top 10 最活跃对话线程',
+                    font: { size: 14, family: 'Inter' }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '消息数量'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// ==================== Scene Analysis (三层钻取逻辑) ====================
+
+// 显示初始状态（等待用户点击"开始分析"）
+function renderInitialAnalyticsState() {
+    const categoryGrid = document.getElementById('category-grid');
+    const startButton = document.getElementById('btn-start-analysis');
+
+    // 显示开始分析按钮
+    if (startButton) {
+        startButton.style.display = 'block';
+    }
+
+    // 显示提示信息
+    categoryGrid.innerHTML = `
+        <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--text-secondary);">
+            <div style="font-size: 3rem; margin-bottom: 16px;">🤖</div>
+            <h3 style="font-size: 1.2rem; color: var(--text-primary); margin-bottom: 12px;">准备开始 AI 场景分析</h3>
+            <p style="font-size: 0.95rem; margin-bottom: 24px;">点击右上角的"开始 AI 分析"按钮，使用 DeepSeek V3 自动分析对话场景</p>
+            <div style="display: inline-block; background: #f0f0f0; padding: 12px 20px; border-radius: 8px; font-size: 0.9rem;">
+                📊 已加载 <strong>${Object.keys(globalThreads).length}</strong> 个对话，等待分析
+            </div>
+        </div>
+    `;
+}
+
+// 显示分析进度面板
+function showAnalysisProgress() {
+    const categoryGrid = document.getElementById('category-grid');
+    const totalThreads = Object.keys(globalThreads).length;
+
+    categoryGrid.innerHTML = `
+        <div class="analysis-progress-panel" id="analysis-progress-panel">
+            <div class="analysis-progress-title">
+                <div class="analysis-progress-spinner"></div>
+                <span>AI 场景分析进行中</span>
+            </div>
+
+            <ul class="analysis-progress-steps" id="progress-steps">
+                <li class="analysis-progress-step" id="step-1">
+                    <div class="analysis-progress-step-icon">📋</div>
+                    <div class="analysis-progress-step-text">
+                        <div class="analysis-progress-step-label">准备数据</div>
+                        <div class="analysis-progress-step-desc">收集 ${totalThreads} 个对话的提示词...</div>
+                    </div>
+                </li>
+                <li class="analysis-progress-step" id="step-2">
+                    <div class="analysis-progress-step-icon">🤖</div>
+                    <div class="analysis-progress-step-text">
+                        <div class="analysis-progress-step-label">调用 AI 模型</div>
+                        <div class="analysis-progress-step-desc">使用 DeepSeek V3 进行场景识别...</div>
+                    </div>
+                </li>
+                <li class="analysis-progress-step" id="step-3">
+                    <div class="analysis-progress-step-icon">📊</div>
+                    <div class="analysis-progress-step-text">
+                        <div class="analysis-progress-step-label">处理分类结果</div>
+                        <div class="analysis-progress-step-desc">构建场景数据库和类别结构...</div>
+                    </div>
+                </li>
+                <li class="analysis-progress-step" id="step-4">
+                    <div class="analysis-progress-step-icon">✨</div>
+                    <div class="analysis-progress-step-text">
+                        <div class="analysis-progress-step-label">渲染结果</div>
+                        <div class="analysis-progress-step-desc">生成场景分类卡片...</div>
+                    </div>
+                </li>
+            </ul>
+
+            <div class="analysis-progress-stats">
+                <div class="analysis-progress-stat">
+                    <div class="analysis-progress-stat-value">${totalThreads}</div>
+                    <div class="analysis-progress-stat-label">待分析对话</div>
+                </div>
+                <div class="analysis-progress-stat">
+                    <div class="analysis-progress-stat-value" id="progress-elapsed">0s</div>
+                    <div class="analysis-progress-stat-label">已用时间</div>
+                </div>
+                <div class="analysis-progress-stat">
+                    <div class="analysis-progress-stat-value" id="progress-status">准备中</div>
+                    <div class="analysis-progress-stat-label">当前状态</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 更新进度步骤状态
+function updateProgressStep(stepNumber, status = 'active') {
+    const step = document.getElementById(`step-${stepNumber}`);
+    if (!step) return;
+
+    // 移除所有步骤的 active 状态
+    document.querySelectorAll('.analysis-progress-step').forEach(s => {
+        s.classList.remove('active');
+    });
+
+    // 标记之前的步骤为已完成
+    for (let i = 1; i < stepNumber; i++) {
+        const prevStep = document.getElementById(`step-${i}`);
+        if (prevStep) {
+            prevStep.classList.add('completed');
+            // 更改图标为勾选
+            const icon = prevStep.querySelector('.analysis-progress-step-icon');
+            if (icon) icon.textContent = '✅';
+        }
+    }
+
+    // 设置当前步骤状态
+    if (status === 'active') {
+        step.classList.add('active');
+    } else if (status === 'completed') {
+        step.classList.add('completed');
+        const icon = step.querySelector('.analysis-progress-step-icon');
+        if (icon) icon.textContent = '✅';
+    }
+
+    // 更新状态文字
+    const statusLabels = {
+        1: '准备数据',
+        2: '调用 AI',
+        3: '处理结果',
+        4: '渲染界面'
+    };
+    const statusEl = document.getElementById('progress-status');
+    if (statusEl) {
+        statusEl.textContent = statusLabels[stepNumber] || '处理中';
+    }
+}
+
+// 手动开始 AI 分析
+async function startAIAnalysis() {
+    const startButton = document.getElementById('btn-start-analysis');
+
+    // 禁用按钮，防止重复点击
+    if (startButton) {
+        startButton.disabled = true;
+        startButton.textContent = '🔄 分析中...';
+    }
+
+    // 显示进度面板
+    showAnalysisProgress();
+
+    // 启动计时器
+    const startTime = Date.now();
+    const timerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const elapsedEl = document.getElementById('progress-elapsed');
+        if (elapsedEl) {
+            elapsedEl.textContent = `${elapsed}s`;
+        }
+    }, 1000);
+
+    try {
+        // 步骤 1: 准备数据
+        updateProgressStep(1, 'active');
+        await new Promise(resolve => setTimeout(resolve, 500)); // 短暂延迟让用户看到进度
+
+        // 调用原有的自动分类函数
+        await autoClassifyScenes();
+
+        // 步骤 4: 渲染结果
+        updateProgressStep(4, 'active');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        renderSceneCategories();
+
+        // 所有步骤完成
+        updateProgressStep(4, 'completed');
+
+    } catch (error) {
+        console.error('AI 分析失败:', error);
+        const categoryGrid = document.getElementById('category-grid');
+        categoryGrid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #d32f2f;">
+                <div style="font-size: 3rem; margin-bottom: 16px;">⚠️</div>
+                <h3 style="font-size: 1.2rem; margin-bottom: 12px;">分析失败</h3>
+                <p style="font-size: 0.95rem; margin-bottom: 24px;">${error.message}</p>
+                <button onclick="location.reload()" style="padding: 12px 24px; background: var(--text-accent); color: white; border: none; border-radius: 8px; cursor: pointer;">
+                    重新加载页面
+                </button>
+            </div>
+        `;
+    } finally {
+        // 清除计时器
+        clearInterval(timerInterval);
+
+        // 隐藏按钮（分析完成后不再需要）
+        if (startButton) {
+            startButton.style.display = 'none';
+        }
+    }
+}
+
+// 自动分类场景（AI 增强版：调用 Gemini API 分析 prompt）
+async function autoClassifyScenes() {
+    // 收集所有 prompt
+    updateProgressStep(1, 'active');
+    const allPrompts = [];
+    Object.keys(globalThreads).forEach(threadId => {
+        const messages = globalThreads[threadId];
+        const firstMessage = messages[0];
+        if (firstMessage && firstMessage.text) {
+            allPrompts.push({
+                threadId: threadId,
+                prompt: firstMessage.text,
+                messageCount: messages.length,
+                imageCount: countImagesInThread(messages)
+            });
+        }
+    });
+
+    console.log(`准备分析 ${allPrompts.length} 个对话的 prompt...`);
+
+    // 步骤 2: 调用 AI API 进行分类
+    updateProgressStep(2, 'active');
+    try {
+        const classification = await callGeminiForClassification(allPrompts);
+
+        // 步骤 3: 处理分类结果
+        updateProgressStep(3, 'active');
+        await new Promise(resolve => setTimeout(resolve, 300)); // 短暂延迟
+
+        // 使用 AI 返回的分类结果构建 SceneDB
+        if (classification && classification.categories) {
+            Object.keys(classification.categories).forEach(categoryName => {
+                const category = classification.categories[categoryName];
+                SceneDB[categoryName] = {
+                    name: categoryName,
+                    description: category.description || `${categoryName}相关的对话分析`,
+                    count: category.threadIds ? category.threadIds.length : 0,
+                    clusters: {
+                        'all': {
+                            name: "全部对话",
+                            count: category.threadIds ? category.threadIds.length : 0,
+                            desc: category.insight || `${categoryName}的所有相关对话`,
+                            threads: []
+                        }
+                    }
+                };
+
+                // 填充 threads
+                if (category.threadIds) {
+                    category.threadIds.forEach(threadId => {
+                        const threadData = allPrompts.find(p => p.threadId === threadId);
+                        if (threadData) {
+                            SceneDB[categoryName].clusters['all'].threads.push({
+                                id: threadId,
+                                prompt: threadData.prompt.substring(0, 200) + '...',
+                                rowNum: threadData.messageCount,
+                                images: threadData.imageCount
+                            });
+                        }
+                    });
+                }
+            });
+
+            console.log('AI 分类完成:', SceneDB);
+        }
+    } catch (error) {
+        console.error('AI 分类失败，使用关键词备用方案:', error);
+
+        // 备用方案：使用关键词分类
+        await fallbackKeywordClassification(allPrompts);
+    }
+}
+
+function countImagesInThread(messages) {
+    let total = 0;
+    messages.forEach(msg => {
+        try {
+            let imageListStr = (msg.image_list || '[]').trim().replace(/^["']|["']$/g, '').replace(/""/g, '"');
+            imageListStr = imageListStr.replace(/(\{|,)\s*image_url\s*:/g, '$1"image_url":');
+            imageListStr = imageListStr.replace(/"image_url"\s*:\s*([^"}\s][^},}]*)/g, '"image_url":"$1"');
+            if (imageListStr && imageListStr !== '[]') {
+                const images = JSON.parse(imageListStr);
+                total += images.length;
+            }
+        } catch (e) {}
+    });
+    return total;
+}
+
+// AI 分类函数：调用后端 Serverless API（保护 API Key）
+async function callGeminiForClassification(allPrompts) {
+    // 检测运行环境并设置正确的 API URL
+    let API_URL;
+
+    if (window.location.protocol === 'file:') {
+        // 本地文件，使用 Vercel 线上 API（固定域名，永久有效）
+        API_URL = 'https://csv-visualizer-one.vercel.app/api/classify';
+        console.log('[本地文件模式] 使用 Vercel 线上 API');
+    } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // 本地开发服务器
+        API_URL = 'http://localhost:3000/api/classify';
+        console.log('[本地开发模式] 使用本地 API');
+    } else {
+        // Vercel 生产环境
+        API_URL = '/api/classify';
+        console.log('[生产环境模式] 使用相对路径 API');
+    }
+
+    console.log('[调用后端 API]', API_URL, `分析 ${allPrompts.length} 个 prompts`);
+
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                prompts: allPrompts
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+
+        const classification = await response.json();
+
+        // 如果后端返回 fallback 标志，抛出错误触发备用方案
+        if (classification.fallback) {
+            throw new Error('后端 API 调用失败，使用备用方案');
+        }
+
+        // 验证返回格式
+        if (!classification.categories || typeof classification.categories !== 'object') {
+            throw new Error('后端返回格式错误');
+        }
+
+        console.log('[AI 分类成功]', classification);
+        return classification;
+
+    } catch (error) {
+        console.error('[后端 API 调用失败]', error);
+        throw error; // 抛出错误，触发备用方案
+    }
+}
+
+// 备用方案：基于关键词的简单分类
+async function fallbackKeywordClassification(allPrompts) {
+    console.log('[启用关键词分类备用方案]');
+
+    // 定义关键词规则
+    const rules = {
+        '摄影类': {
+            keywords: ['照片', '摄影', '拍摄', '写真', '人像', 'photo', 'portrait', 'camera'],
+            description: '包含摄影、写真、人像相关的对话',
+            insight: '用户主要关注人像摄影和写真拍摄场景'
+        },
+        '设计类': {
+            keywords: ['设计', '海报', 'banner', 'logo', '品牌', 'UI', 'UX', '界面'],
+            description: '包含平面设计、UI/UX、品牌视觉相关的对话',
+            insight: '用户聚焦于视觉设计和品牌创意'
+        },
+        '文案创作': {
+            keywords: ['文案', '标题', '广告语', '营销', '推广', '内容', '写作'],
+            description: '包含文案撰写、营销推广相关的对话',
+            insight: '用户需求集中在营销文案和内容创作'
+        },
+        '技术咨询': {
+            keywords: ['代码', '编程', '开发', 'bug', '技术', 'API', '数据库', '算法'],
+            description: '包含编程、技术问题、开发咨询相关的对话',
+            insight: '用户主要咨询技术开发和编程问题'
+        },
+        '其他': {
+            keywords: [],
+            description: '未能明确分类的其他对话',
+            insight: '涵盖多样化的用户需求和问题'
+        }
+    };
+
+    // 分类逻辑
+    const categories = {};
+    Object.keys(rules).forEach(cat => {
+        categories[cat] = {
+            description: rules[cat].description,
+            insight: rules[cat].insight,
+            threadIds: []
+        };
+    });
+
+    allPrompts.forEach(p => {
+        let matched = false;
+        for (let cat in rules) {
+            if (cat === '其他') continue;
+
+            const keywords = rules[cat].keywords;
+            const hasKeyword = keywords.some(kw =>
+                p.prompt.toLowerCase().includes(kw.toLowerCase())
+            );
+
+            if (hasKeyword) {
+                categories[cat].threadIds.push(p.threadId);
+                matched = true;
+                break;
+            }
+        }
+
+        if (!matched) {
+            categories['其他'].threadIds.push(p.threadId);
+        }
+    });
+
+    // 移除空分类
+    Object.keys(categories).forEach(cat => {
+        if (categories[cat].threadIds.length === 0) {
+            delete categories[cat];
+        }
+    });
+
+    // 构建 SceneDB
+    Object.keys(categories).forEach(categoryName => {
+        const category = categories[categoryName];
+        SceneDB[categoryName] = {
+            name: categoryName,
+            description: category.description,
+            count: category.threadIds.length,
+            clusters: {
+                'all': {
+                    name: "全部对话",
+                    count: category.threadIds.length,
+                    desc: category.insight,
+                    threads: []
+                }
+            }
+        };
+
+        // 填充 threads
+        category.threadIds.forEach(threadId => {
+            const threadData = allPrompts.find(p => p.threadId === threadId);
+            if (threadData) {
+                SceneDB[categoryName].clusters['all'].threads.push({
+                    id: threadId,
+                    prompt: threadData.prompt.substring(0, 200) + '...',
+                    rowNum: threadData.messageCount,
+                    images: threadData.imageCount
+                });
+            }
+        });
+    });
+
+    console.log('[关键词分类完成]', SceneDB);
+}
+
+// 渲染场景分类卡片（Level 0 → Level 1）
+function renderSceneCategories() {
+    const container = document.getElementById('category-grid');
+    let html = '';
+
+    for (let categoryKey in SceneDB) {
+        const category = SceneDB[categoryKey];
+        if (category.count === 0) continue;
+
+        html += `
+            <div class="cluster-card clickable-card" onclick="loadSceneCategory('${categoryKey}')">
+                <div class="cluster-header">
+                    <span class="cluster-title">${category.name}</span>
+                    <span class="cluster-stat">${category.count}</span>
+                </div>
+                <p style="color: #666; font-size: 0.9rem; margin-bottom: 16px;">
+                    ${category.description}
+                </p>
+                <div style="font-size: 0.85rem; color: var(--text-accent); font-weight:500;">
+                    查看详情 →
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+// Level 1: 加载某个场景分类
+function loadSceneCategory(categoryKey) {
+    currentCategory = categoryKey;
+    currentCluster = null;
+    currentSubCluster = null;
+
+    switchAnalyticsView('dynamic');
+    renderSceneBreadcrumb(categoryKey);
+
+    const category = SceneDB[categoryKey];
+    const content = document.getElementById('analytics-content');
+
+    if (!category || !category.clusters || Object.keys(category.clusters).length === 0) {
+        content.innerHTML = `<div class="ai-summary">此场景暂无详细数据。</div>`;
+        return;
+    }
+
+    let html = `
+        <header class="analytics-dynamic-header">
+            <h1>${category.name}</h1>
+            <p>${category.description}</p>
+        </header>
+        <div class="cluster-grid">
+    `;
+
+    for (let clusterKey in category.clusters) {
+        const cluster = category.clusters[clusterKey];
+        html += `
+            <div class="cluster-card clickable-card" onclick="loadSceneCluster('${categoryKey}', '${clusterKey}')">
+                <div class="cluster-header">
+                    <span class="cluster-title">${cluster.name}</span>
+                    <span class="cluster-stat">${cluster.count}</span>
+                </div>
+                <p style="color: #666; font-size: 0.9rem; margin-bottom: 16px;">
+                    ${cluster.desc}
+                </p>
+                <div style="font-size: 0.85rem; color: var(--text-accent); font-weight:500;">
+                    查看 ${cluster.threads.length} 个对话 →
+                </div>
+            </div>
+        `;
+    }
+
+    html += `</div>`;
+    content.innerHTML = html;
+}
+
+// Level 2: 加载某个聚类的对话列表
+function loadSceneCluster(categoryKey, clusterKey) {
+    currentCategory = categoryKey;
+    currentCluster = clusterKey;
+
+    renderSceneBreadcrumb(categoryKey, clusterKey);
+
+    const cluster = SceneDB[categoryKey].clusters[clusterKey];
+    const content = document.getElementById('analytics-content');
+
+    let html = `
+        <button class="back-button" onclick="loadSceneCategory('${categoryKey}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M15 18l-6-6 6-6"/></svg>
+            返回 ${SceneDB[categoryKey].name}
+        </button>
+        <div class="ai-summary">
+            <div class="ai-summary-title">场景: ${cluster.name}</div>
+            <p>${cluster.desc}</p>
+        </div>
+
+        <h3 class="analytics-title" style="margin-top: 32px;">对话列表 (${cluster.threads.length})</h3>
+    `;
+
+    cluster.threads.forEach(thread => {
+        html += `
+            <div class="message-card clickable-card" onclick="viewThreadFromScene('${thread.id}')">
+                <div class="thread-summary-card-meta">
+                    <div>
+                        <span class="thread-summary-card-id">
+                            #${thread.id.substring(0, 8)}...
+                        </span>
+                        <span class="thread-summary-card-stats">
+                            ${thread.rowNum} 条消息 • ${thread.images} 张图片
+                        </span>
+                    </div>
+                </div>
+                <div class="thread-summary-card-prompt">
+                    ${thread.prompt}
+                </div>
+            </div>
+        `;
+    });
+
+    content.innerHTML = html;
+}
+
+// 从场景分析跳转到对话查看器
+function viewThreadFromScene(threadId) {
+    // 切换到Thread Viewer
+    switchView('viewer', null);
+
+    // 选中对应的thread
+    selectThread(threadId);
+
+    // 更新侧边栏高亮
+    document.querySelectorAll('.thread-item').forEach(el => {
+        if (el.textContent === threadId) {
+            el.classList.add('active');
+        }
+    });
+}
+
+// 切换Analytics子视图
+function switchAnalyticsView(view) {
+    document.querySelectorAll('.analytics-view').forEach(el => el.classList.remove('active'));
+    document.getElementById(`analytics-${view}`).classList.add('active');
+}
+
+// 返回总览
+function showAnalyticsOverview() {
+    switchAnalyticsView('overview');
+    currentCategory = null;
+    currentCluster = null;
+    currentSubCluster = null;
+    renderSceneBreadcrumb();
+}
+
+// 渲染面包屑
+function renderSceneBreadcrumb(categoryKey, clusterKey) {
+    const container = document.getElementById('analytics-breadcrumb');
+    let html = `<span class="breadcrumb-item" onclick="showAnalyticsOverview()">数据总览</span>`;
+
+    if (categoryKey && SceneDB[categoryKey]) {
+        html += `<span class="breadcrumb-separator">/</span>`;
+        if (!clusterKey) {
+            html += `<span class="breadcrumb-current">${SceneDB[categoryKey].name}</span>`;
+        } else {
+            html += `<span class="breadcrumb-item" onclick="loadSceneCategory('${categoryKey}')">${SceneDB[categoryKey].name}</span>`;
+        }
+    }
+
+    if (clusterKey && SceneDB[categoryKey] && SceneDB[categoryKey].clusters[clusterKey]) {
+        html += `<span class="breadcrumb-separator">/</span>`;
+        html += `<span class="breadcrumb-current">${SceneDB[categoryKey].clusters[clusterKey].name}</span>`;
+    }
+
+    container.innerHTML = html;
+}
+
+// ==================== View Switching ====================
+function switchView(view, event) {
+    currentView = view;
+
+    // Update nav items
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    if (event && event.target) {
+        event.target.classList.add('active');
+    }
+
+    // Update view sections
+    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+    document.getElementById(`view-${view}`).classList.add('active');
+
+    // Load upload history when switching to history view
+    if (view === 'history') {
+        loadUploadHistory();
+    }
+}
+
+// ==================== Utilities ====================
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        alert('对话 ID 已复制到剪贴板！');
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function downloadImage(url, filename) {
+    fetch(url)
+        .then(res => res.blob())
+        .then(blob => {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        })
+        .catch(err => console.error('Download failed:', err));
+}
+
+// ==================== AI Image Analysis ====================
+async function analyzeImage(imageUrl, imageId) {
+    const wrapper = document.getElementById(`wrapper-${imageId}`);
+
+    // 检查是否已经有分析结果
+    const existingResult = document.getElementById(`ai-result-${imageId}`);
+    if (existingResult) {
+        existingResult.remove();
+        return;
+    }
+
+    // 创建loading状态
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = `ai-result-${imageId}`;
+    loadingDiv.className = 'ai-result-card';
+    loadingDiv.innerHTML = `
+        <div class="ai-result-title">
+            <span class="ai-loading"></span>
+            AI正在分析图片...
+        </div>
+    `;
+    wrapper.insertAdjacentElement('afterend', loadingDiv);
+
+    try {
+        // 调用AI视觉分析API
+        const analysisResult = await callVisionAPI(imageUrl);
+
+        // 更新结果
+        loadingDiv.innerHTML = `
+            <div class="ai-result-title">
+                🤖 AI分析结果
+            </div>
+            <div class="ai-result-content">${analysisResult}</div>
+        `;
+    } catch (error) {
+        loadingDiv.innerHTML = `
+            <div class="ai-result-title" style="color: #D32F2F;">
+                ⚠️ 分析失败
+            </div>
+            <div class="ai-result-content">${error.message}</div>
+        `;
+    }
+}
+
+async function callVisionAPI(imageUrl) {
+    // 这里接入你的AI视觉API
+    // 示例：使用Google Gemini Vision API
+
+    const API_KEY = '9fe4a522-cc15-4e82-a548-3c1d57bb149d'; // 替换为实际的API Key
+    const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
+
+    try {
+        // 先下载图片并转换为base64
+        const imageBase64 = await fetchImageAsBase64(imageUrl);
+
+        const response = await fetch(`${API_URL}?key=${API_KEY}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        {
+                            text: "请详细分析这张图片的内容，包括：1) 图片主题和内容描述 2) 视觉元素分析（颜色、构图、风格）3) 如果有文字，请识别并提取 4) 图片的可能用途或场景。请用中文回答。"
+                        },
+                        {
+                            inline_data: {
+                                mime_type: "image/jpeg",
+                                data: imageBase64
+                            }
+                        }
+                    ]
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+            return data.candidates[0].content.parts[0].text;
+        } else {
+            throw new Error('API返回格式异常');
+        }
+    } catch (error) {
+        console.error('Vision API调用失败:', error);
+
+        // 如果API调用失败，返回模拟分析结果
+        return `
+            <strong>📸 图片分析 (演示模式)</strong><br><br>
+
+            <strong>图片URL:</strong> ${imageUrl.substring(0, 60)}...<br><br>
+
+            <strong>💡 提示:</strong> 要启用真实的AI分析功能，请：<br>
+            1. 在代码中替换 <code>YOUR_API_KEY</code> 为您的Google Gemini API密钥<br>
+            2. 或者接入其他视觉AI服务（如OpenAI Vision, Claude Vision等）<br><br>
+
+            <strong>当前错误:</strong> ${error.message}<br><br>
+
+            <em>演示模式下无法进行实际分析，请配置API后使用。</em>
+        `;
+    }
+}
+
+async function fetchImageAsBase64(imageUrl) {
+    try {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                // 移除data:image/xxx;base64,前缀
+                const base64 = reader.result.split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        throw new Error(`图片加载失败: ${error.message}`);
+    }
+}
+
+// ==================== Upload History Management ====================
+let uploadHistory = [];
+
+/**
+ * Load upload history from localStorage or API
+ */
+async function loadUploadHistory() {
+    try {
+        // 从 localStorage 加载历史记录
+        const stored = localStorage.getItem('uploadHistory');
+        uploadHistory = stored ? JSON.parse(stored) : [];
+
+        renderUploadHistory();
+    } catch (error) {
+        console.error('加载历史记录失败:', error);
+        uploadHistory = [];
+        renderUploadHistory();
+    }
+}
+
+/**
+ * Render upload history cards
+ */
+function renderUploadHistory() {
+    const container = document.getElementById('history-list');
+
+    if (uploadHistory.length === 0) {
+        container.innerHTML = `
+            <div class="ai-summary" style="text-align: center; padding: 60px 20px;">
+                <div style="font-size: 3rem; margin-bottom: 16px;">📂</div>
+                <div style="font-size: 1.1rem; color: var(--text-secondary);">暂无上传历史</div>
+                <p style="margin-top: 8px; color: var(--text-secondary); font-size: 0.9rem;">
+                    上传 CSV 文件后，历史记录将显示在这里
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = uploadHistory.map((record, index) => `
+        <div class="history-card" onclick="loadHistoryFile('${record.id}')">
+            <div class="history-card-header">
+                <div class="history-card-icon">📊</div>
+            </div>
+            <div class="history-card-title">${escapeHtml(record.fileName)}</div>
+            <div class="history-card-meta">
+                <span>${formatDate(record.uploadTime)}</span>
+                <span class="history-card-size">${formatFileSize(record.fileSize)}</span>
+            </div>
+            <div class="history-card-actions" onclick="event.stopPropagation()">
+                <button class="history-btn history-btn-primary" onclick="downloadHistoryFile('${record.id}')">
+                    📥 下载
+                </button>
+                <button class="history-btn history-btn-danger" onclick="deleteHistoryFile('${record.id}')">
+                    🗑️ 删除
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+/**
+ * Add a file to upload history
+ */
+async function addToHistory(file, data) {
+    const record = {
+        id: Date.now().toString(),
+        fileName: file.name,
+        fileSize: file.size,
+        uploadTime: new Date().toISOString(),
+        data: data // 保存 CSV 解析后的数据
+    };
+
+    uploadHistory.unshift(record); // 最新的在前面
+
+    // 限制历史记录数量（最多保留50条）
+    if (uploadHistory.length > 50) {
+        uploadHistory = uploadHistory.slice(0, 50);
+    }
+
+    // 保存到 localStorage（作为主存储）
+    try {
+        localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
+    } catch (error) {
+        console.error('保存历史记录失败:', error);
+        // 如果超出 localStorage 限制，只保留最近10条
+        uploadHistory = uploadHistory.slice(0, 10);
+        localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
+    }
+
+    // 可选：同时上传到 Cloudflare R2（后台异步，不阻塞用户）
+    try {
+        await uploadToR2(file);
+    } catch (error) {
+        console.warn('R2 上传失败（不影响本地使用）:', error);
+    }
+}
+
+/**
+ * Upload file to Cloudflare R2 (background async)
+ */
+async function uploadToR2(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const base64Content = e.target.result.split(',')[1]; // 移除 "data:text/csv;base64," 前缀
+
+                const response = await fetch('/api/upload-to-r2', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        fileName: file.name,
+                        fileContent: base64Content,
+                        fileSize: file.size,
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`R2 上传失败: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log('[R2] 文件已上传到云端:', result.record.r2Url);
+                resolve(result);
+
+            } catch (error) {
+                console.error('[R2] 上传失败:', error);
+                reject(error);
+            }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+/**
+ * Load a file from history
+ */
+function loadHistoryFile(id) {
+    const record = uploadHistory.find(r => r.id === id);
+    if (!record) {
+        alert('历史记录不存在');
+        return;
+    }
+
+    // 恢复数据
+    globalThreads = record.data;
+
+    // 切换到查看器视图
+    document.getElementById('nav-viewer').style.display = 'flex';
+    document.getElementById('nav-analytics').style.display = 'flex';
+    renderSidebar();
+    populateAnalytics();
+    switchView('viewer', { target: document.getElementById('nav-viewer') });
+
+    // 显示成功提示
+    alert(`已加载文件：${record.fileName}`);
+}
+
+/**
+ * Download a file from history
+ */
+function downloadHistoryFile(id) {
+    const record = uploadHistory.find(r => r.id === id);
+    if (!record) {
+        alert('历史记录不存在');
+        return;
+    }
+
+    // 将数据转换回 CSV 格式并下载
+    const csv = convertDataToCSV(record.data);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = record.fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * Delete a file from history
+ */
+function deleteHistoryFile(id) {
+    if (!confirm('确定要删除这条历史记录吗？')) {
+        return;
+    }
+
+    uploadHistory = uploadHistory.filter(r => r.id !== id);
+    localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
+    renderUploadHistory();
+}
+
+/**
+ * Convert data object to CSV string
+ */
+function convertDataToCSV(data) {
+    if (!data || Object.keys(data).length === 0) {
+        return '';
+    }
+
+    // Get all rows from all threads
+    const allRows = [];
+    Object.values(data).forEach(thread => {
+        thread.forEach(row => allRows.push(row));
+    });
+
+    if (allRows.length === 0) return '';
+
+    // Get headers from first row
+    const headers = Object.keys(allRows[0]);
+
+    // Build CSV
+    const csvRows = [headers.join(',')];
+    allRows.forEach(row => {
+        const values = headers.map(header => {
+            const value = row[header] || '';
+            // Escape commas and quotes
+            return `"${String(value).replace(/"/g, '""')}"`;
+        });
+        csvRows.push(values.join(','));
+    });
+
+    return csvRows.join('\n');
+}
+
+/**
+ * Format date to human-readable string
+ */
+function formatDate(isoString) {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diff = now - date;
+
+    // Less than 1 minute
+    if (diff < 60000) return '刚刚';
+
+    // Less than 1 hour
+    if (diff < 3600000) {
+        return `${Math.floor(diff / 60000)} 分钟前`;
+    }
+
+    // Less than 1 day
+    if (diff < 86400000) {
+        return `${Math.floor(diff / 3600000)} 小时前`;
+    }
+
+    // Less than 7 days
+    if (diff < 604800000) {
+        return `${Math.floor(diff / 86400000)} 天前`;
+    }
+
+    // More than 7 days, show specific date
+    return date.toLocaleDateString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+/**
+ * Format file size to human-readable string
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
+</script>
+
+</body>
+</html>
