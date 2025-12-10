@@ -2554,13 +2554,107 @@ async function fetchImageAsBase64(imageUrl) {
 
 // ==================== Upload History Management ====================
 let uploadHistory = [];
+let db; // IndexedDB instance
+
+/**
+ * Initialize IndexedDB
+ */
+async function initIndexedDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('CSVVisualizerDB', 1);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+            db = request.result;
+            resolve(db);
+        };
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('csvData')) {
+                db.createObjectStore('csvData', { keyPath: 'id' });
+            }
+        };
+    });
+}
+
+/**
+ * Save data to IndexedDB
+ */
+async function saveToIndexedDB(id, data) {
+    if (!db) await initIndexedDB();
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(['csvData'], 'readwrite');
+        const store = transaction.objectStore('csvData');
+        const request = store.put({ id, data });
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+/**
+ * Get data from IndexedDB
+ */
+async function getFromIndexedDB(id) {
+    if (!db) await initIndexedDB();
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(['csvData'], 'readonly');
+        const store = transaction.objectStore('csvData');
+        const request = store.get(id);
+
+        request.onsuccess = () => resolve(request.result?.data);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+/**
+ * Delete data from IndexedDB
+ */
+async function deleteFromIndexedDB(id) {
+    if (!db) await initIndexedDB();
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(['csvData'], 'readwrite');
+        const store = transaction.objectStore('csvData');
+        const request = store.delete(id);
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+/**
+ * Clean old data from IndexedDB (keep only IDs in current history)
+ */
+async function cleanOldIndexedDBData(keepIds) {
+    if (!db) await initIndexedDB();
+
+    const transaction = db.transaction(['csvData'], 'readwrite');
+    const store = transaction.objectStore('csvData');
+    const request = store.getAllKeys();
+
+    request.onsuccess = () => {
+        const allKeys = request.result;
+        allKeys.forEach(key => {
+            if (!keepIds.includes(key)) {
+                store.delete(key);
+            }
+        });
+    };
+}
 
 /**
  * Load upload history from localStorage or API
  */
 async function loadUploadHistory() {
     try {
-        // 从 localStorage 加载历史记录
+        // 初始化 IndexedDB
+        await initIndexedDB();
+
+        // 从 localStorage 加载历史记录元信息
         const stored = localStorage.getItem('uploadHistory');
         uploadHistory = stored ? JSON.parse(stored) : [];
 
@@ -2617,12 +2711,23 @@ function renderUploadHistory() {
  * Add a file to upload history
  */
 async function addToHistory(file, data) {
+    const id = Date.now().toString();
+
+    // 保存完整数据到 IndexedDB（大容量存储）
+    try {
+        await saveToIndexedDB(id, data);
+    } catch (error) {
+        console.error('保存到 IndexedDB 失败:', error);
+    }
+
+    // 只保存元信息到 localStorage（轻量级）
     const record = {
-        id: Date.now().toString(),
+        id: id,
         fileName: file.name,
         fileSize: file.size,
         uploadTime: new Date().toISOString(),
-        data: data // 保存 CSV 解析后的数据
+        threadCount: Object.keys(data).length,
+        r2Url: null // R2 URL 将在上传成功后更新
     };
 
     uploadHistory.unshift(record); // 最新的在前面
@@ -2630,21 +2735,31 @@ async function addToHistory(file, data) {
     // 限制历史记录数量（最多保留50条）
     if (uploadHistory.length > 50) {
         uploadHistory = uploadHistory.slice(0, 50);
+        // 同时清理 IndexedDB 中的旧数据
+        cleanOldIndexedDBData(uploadHistory.map(r => r.id));
     }
 
-    // 保存到 localStorage（作为主存储）
+    // 保存元信息到 localStorage
     try {
         localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
     } catch (error) {
-        console.error('保存历史记录失败:', error);
-        // 如果超出 localStorage 限制，只保留最近10条
-        uploadHistory = uploadHistory.slice(0, 10);
+        console.error('保存历史记录元信息失败:', error);
+        // 如果还是超限，只保留最近5条
+        uploadHistory = uploadHistory.slice(0, 5);
         localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
     }
 
     // 可选：同时上传到 Cloudflare R2（后台异步，不阻塞用户）
     try {
-        await uploadToR2(file);
+        const r2Result = await uploadToR2(file);
+        // 更新记录的 R2 URL
+        if (r2Result && r2Result.record) {
+            const idx = uploadHistory.findIndex(r => r.id === id);
+            if (idx !== -1) {
+                uploadHistory[idx].r2Url = r2Result.record.r2Url;
+                localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
+            }
+        }
     } catch (error) {
         console.warn('R2 上传失败（不影响本地使用）:', error);
     }
@@ -2693,58 +2808,92 @@ async function uploadToR2(file) {
 /**
  * Load a file from history
  */
-function loadHistoryFile(id) {
+async function loadHistoryFile(id) {
     const record = uploadHistory.find(r => r.id === id);
     if (!record) {
         alert('历史记录不存在');
         return;
     }
 
-    // 恢复数据
-    globalThreads = record.data;
+    try {
+        // 从 IndexedDB 加载完整数据
+        const data = await getFromIndexedDB(id);
 
-    // 切换到查看器视图
-    document.getElementById('nav-viewer').style.display = 'flex';
-    document.getElementById('nav-analytics').style.display = 'flex';
-    renderSidebar();
-    populateAnalytics();
-    switchView('viewer', { target: document.getElementById('nav-viewer') });
+        if (!data) {
+            alert('数据已被清理，请重新上传文件');
+            return;
+        }
 
-    // 显示成功提示
-    alert(`已加载文件：${record.fileName}`);
+        // 恢复数据
+        globalThreads = data;
+
+        // 切换到查看器视图
+        document.getElementById('nav-viewer').style.display = 'flex';
+        document.getElementById('nav-analytics').style.display = 'flex';
+        renderSidebar();
+        calculateAnalytics();
+        switchView('viewer', { target: document.getElementById('nav-viewer') });
+
+        // 显示成功提示
+        console.log(`✅ 已加载文件：${record.fileName} (${record.threadCount} 个对话)`);
+    } catch (error) {
+        console.error('加载历史文件失败:', error);
+        alert('加载历史文件失败，请重新上传');
+    }
 }
 
 /**
  * Download a file from history
  */
-function downloadHistoryFile(id) {
+async function downloadHistoryFile(id) {
     const record = uploadHistory.find(r => r.id === id);
     if (!record) {
         alert('历史记录不存在');
         return;
     }
 
-    // 将数据转换回 CSV 格式并下载
-    const csv = convertDataToCSV(record.data);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = record.fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+        // 从 IndexedDB 加载数据
+        const data = await getFromIndexedDB(id);
+
+        if (!data) {
+            alert('数据已被清理，请重新上传文件');
+            return;
+        }
+
+        // 将数据转换回 CSV 格式并下载
+        const csv = convertDataToCSV(data);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = record.fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('下载历史文件失败:', error);
+        alert('下载失败，请重试');
+    }
 }
 
 /**
  * Delete a file from history
  */
-function deleteHistoryFile(id) {
+async function deleteHistoryFile(id) {
     if (!confirm('确定要删除这条历史记录吗？')) {
         return;
     }
 
+    // 从 IndexedDB 删除数据
+    try {
+        await deleteFromIndexedDB(id);
+    } catch (error) {
+        console.error('删除 IndexedDB 数据失败:', error);
+    }
+
+    // 从 localStorage 删除元信息
     uploadHistory = uploadHistory.filter(r => r.id !== id);
     localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
     renderUploadHistory();
