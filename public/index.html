@@ -241,6 +241,8 @@
             border-bottom: 1px solid var(--border-subtle);
             background: #fff;
             position: relative; /* For popover positioning */
+            overflow: hidden; /* Prevent overflow */
+            z-index: 100; /* Ensure filter bar is above thread items */
         }
 
         .filter-trigger-btn {
@@ -257,6 +259,7 @@
             cursor: pointer;
             transition: all 0.2s;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            flex-shrink: 0; /* Prevent button from shrinking */
         }
 
         .filter-trigger-btn:hover, .filter-trigger-btn.active {
@@ -270,6 +273,8 @@
             flex-wrap: wrap;
             gap: 8px;
             flex: 1;
+            min-width: 0; /* Allow shrinking */
+            overflow: hidden; /* Prevent chips from overflowing */
         }
 
         .filter-chip {
@@ -284,11 +289,17 @@
             color: var(--text-accent);
             font-weight: 500;
             animation: fadeIn 0.2s ease;
+            max-width: 300px; /* Limit chip width */
+            flex-shrink: 0; /* Prevent shrinking */
         }
 
         .filter-chip-label {
             color: var(--text-secondary);
             margin-right: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px; /* Truncate long values */
         }
 
         .filter-chip-remove {
@@ -314,7 +325,7 @@
             border: 1px solid var(--border-subtle);
             border-radius: var(--radius-md);
             box-shadow: var(--shadow-float);
-            z-index: 100;
+            z-index: 1000; /* High z-index to float above other UI elements */
             display: none;
             flex-direction: column;
             overflow: hidden;
