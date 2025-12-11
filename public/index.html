@@ -3260,6 +3260,13 @@ let filterPanelExpanded = true; // 筛选面板展开状态
  */
 function toggleFilterPanel() {
     filterPanelExpanded = !filterPanelExpanded;
+    updateFilterPanelDisplay();
+}
+
+/**
+ * Update filter panel display based on expanded state
+ */
+function updateFilterPanelDisplay() {
     const filterContent = document.getElementById('filter-content');
     const toggleIcon = document.getElementById('filter-toggle-icon');
 
@@ -3436,7 +3443,7 @@ function applyFilters() {
 
         // 自动收起面板
         filterPanelExpanded = false;
-        toggleFilterPanel();
+        updateFilterPanelDisplay();
         return;
     }
 
@@ -3480,10 +3487,8 @@ function applyFilters() {
     updateFilterStatus();
 
     // 自动收起面板
-    if (filterPanelExpanded) {
-        filterPanelExpanded = false;
-        toggleFilterPanel();
-    }
+    filterPanelExpanded = false;
+    updateFilterPanelDisplay();
 }
 
 /**
@@ -3511,13 +3516,11 @@ function updateFilterStatus() {
 function setupFilterClickOutside() {
     document.addEventListener('click', (event) => {
         const filterContainer = document.getElementById('filter-container');
-        const filterContent = document.getElementById('filter-content');
 
         // 如果面板已展开，且点击在筛选器外部
-        if (filterPanelExpanded && !filterContainer.contains(event.target)) {
+        if (filterPanelExpanded && filterContainer && !filterContainer.contains(event.target)) {
             filterPanelExpanded = false;
-            filterContent.style.display = 'none';
-            document.getElementById('filter-toggle-icon').classList.remove('expanded');
+            updateFilterPanelDisplay();
         }
     });
 }
