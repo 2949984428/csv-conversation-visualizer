@@ -231,6 +231,144 @@
             color: var(--text-secondary);
         }
 
+        /* ==================== Filter Styles ==================== */
+        .filter-container {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            background: white;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .filter-label {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            min-width: 60px;
+        }
+
+        .filter-select {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            font-family: var(--font-sans);
+            color: var(--text-primary);
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-select:hover {
+            border-color: var(--text-accent);
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--text-accent);
+            box-shadow: 0 0 0 3px rgba(218, 119, 86, 0.1);
+        }
+
+        .filter-values {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            background: white;
+        }
+
+        .filter-value-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid #F5F5F5;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .filter-value-item:last-child {
+            border-bottom: none;
+        }
+
+        .filter-value-item:hover {
+            background: #FAFAFA;
+        }
+
+        .filter-checkbox {
+            width: 16px;
+            height: 16px;
+            margin-right: 10px;
+            cursor: pointer;
+            accent-color: var(--text-accent);
+        }
+
+        .filter-value-label {
+            flex: 1;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+
+        .filter-value-count {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            background: #F5F5F5;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .filter-btn {
+            flex: 1;
+            padding: 8px 16px;
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+            color: var(--text-primary);
+        }
+
+        .filter-btn:hover {
+            background: #FAFAFA;
+            border-color: var(--text-accent);
+        }
+
+        .filter-btn-primary {
+            background: var(--text-accent);
+            color: white;
+            border-color: var(--text-accent);
+        }
+
+        .filter-btn-primary:hover {
+            background: #C86647;
+            border-color: #C86647;
+        }
+
+        .filter-active-badge {
+            display: inline-block;
+            background: var(--text-accent);
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+
         .thread-item {
             padding: 16px 20px;
             border-bottom: 1px solid #F5F5F5;
@@ -1149,6 +1287,27 @@
                         <div class="thread-list-title">对话列表</div>
                         <div class="thread-count" id="thread-count">已加载 0 个对话</div>
                     </div>
+
+                    <!-- 筛选器 -->
+                    <div class="filter-container" id="filter-container" style="display: none;">
+                        <div class="filter-row">
+                            <span class="filter-label">筛选字段</span>
+                            <select class="filter-select" id="filter-field" onchange="onFilterFieldChange()">
+                                <option value="">选择字段...</option>
+                            </select>
+                        </div>
+
+                        <div id="filter-values-container" style="display: none;">
+                            <div class="filter-values" id="filter-values"></div>
+
+                            <div class="filter-actions">
+                                <button class="filter-btn" onclick="selectAllFilters()">全选</button>
+                                <button class="filter-btn" onclick="clearAllFilters()">清空</button>
+                                <button class="filter-btn filter-btn-primary" onclick="applyFilters()">应用筛选</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div id="sidebar"></div>
                 </div>
 
@@ -1252,6 +1411,11 @@
 // ==================== Global State ====================
 let globalThreads = {};
 let currentView = 'upload';
+
+// Filter state
+let allCSVRows = [];  // 存储所有原始 CSV 行数据
+let currentFilters = {}; // 存储当前选中的筛选值 { field: [values] }
+let filteredThreadIds = null; // 筛选后的 thread IDs，null 表示无筛选
 
 // ==================== File Upload ====================
 const dropArea = document.getElementById('drop-area');
@@ -1390,6 +1554,7 @@ function parseCSVLine(line) {
 // ==================== Thread Organization ====================
 function organizeThreads(rows) {
     globalThreads = {};
+    allCSVRows = rows; // 保存所有原始数据用于筛选
 
     rows.forEach(row => {
         const threadId = row.thread_id;
@@ -1413,6 +1578,10 @@ function organizeThreads(rows) {
     });
 
     console.log(`Unique threads: ${Object.keys(globalThreads).length}`);
+
+    // 初始化筛选器
+    initializeFilter();
+
     renderSidebar();
     calculateAnalytics();
 }
@@ -1420,9 +1589,22 @@ function organizeThreads(rows) {
 // ==================== Sidebar Rendering ====================
 function renderSidebar() {
     const sidebar = document.getElementById('sidebar');
-    const threadIds = Object.keys(globalThreads);
+    let threadIds = Object.keys(globalThreads);
 
-    document.getElementById('thread-count').textContent = `已加载 ${threadIds.length} 个对话`;
+    // 应用筛选
+    if (filteredThreadIds !== null) {
+        threadIds = threadIds.filter(id => filteredThreadIds.includes(id));
+    }
+
+    const totalCount = Object.keys(globalThreads).length;
+    const filteredCount = threadIds.length;
+
+    let countText = `已加载 ${totalCount} 个对话`;
+    if (filteredThreadIds !== null) {
+        countText += ` <span class="filter-active-badge">${filteredCount} 筛选结果</span>`;
+    }
+
+    document.getElementById('thread-count').innerHTML = countText;
 
     sidebar.innerHTML = threadIds.map(threadId =>
         `<div class="thread-item" onclick="selectThread('${threadId}')">${threadId}</div>`
@@ -2998,6 +3180,167 @@ function formatFileSize(bytes) {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
 
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
+// ==================== Filter Functions ====================
+
+/**
+ * Initialize filter UI with available CSV fields
+ */
+function initializeFilter() {
+    if (allCSVRows.length === 0) return;
+
+    const filterContainer = document.getElementById('filter-container');
+    const filterField = document.getElementById('filter-field');
+
+    // 显示筛选器
+    filterContainer.style.display = 'block';
+
+    // 获取所有字段
+    const sampleRow = allCSVRows[0];
+    const fields = Object.keys(sampleRow);
+
+    // 填充字段下拉列表
+    filterField.innerHTML = '<option value="">选择字段...</option>';
+    fields.forEach(field => {
+        const option = document.createElement('option');
+        option.value = field;
+        option.textContent = field;
+        filterField.appendChild(option);
+    });
+
+    console.log('[Filter] Initialized with fields:', fields);
+}
+
+/**
+ * Handle filter field change
+ */
+function onFilterFieldChange() {
+    const filterField = document.getElementById('filter-field');
+    const filterValuesContainer = document.getElementById('filter-values-container');
+    const filterValues = document.getElementById('filter-values');
+
+    const selectedField = filterField.value;
+
+    if (!selectedField) {
+        filterValuesContainer.style.display = 'none';
+        return;
+    }
+
+    // 统计该字段的所有值及其出现次数
+    const valueCounts = {};
+    allCSVRows.forEach(row => {
+        const value = (row[selectedField] || '').toString().trim();
+        if (value) {
+            valueCounts[value] = (valueCounts[value] || 0) + 1;
+        }
+    });
+
+    // 按出现次数排序
+    const sortedValues = Object.entries(valueCounts)
+        .sort((a, b) => b[1] - a[1]); // 降序
+
+    // 渲染值列表
+    filterValues.innerHTML = sortedValues.map(([value, count]) => {
+        const isChecked = currentFilters[selectedField]?.includes(value) ? 'checked' : '';
+        const truncatedValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+
+        return `
+            <div class="filter-value-item" onclick="toggleFilterValue(event)">
+                <input type="checkbox" class="filter-checkbox"
+                       data-field="${selectedField}"
+                       data-value="${escapeHtml(value)}"
+                       ${isChecked}>
+                <span class="filter-value-label" title="${escapeHtml(value)}">
+                    ${escapeHtml(truncatedValue)}
+                </span>
+                <span class="filter-value-count">${count}</span>
+            </div>
+        `;
+    }).join('');
+
+    filterValuesContainer.style.display = 'block';
+    console.log('[Filter] Field selected:', selectedField, 'Values:', sortedValues.length);
+}
+
+/**
+ * Toggle filter value checkbox
+ */
+function toggleFilterValue(event) {
+    const checkbox = event.currentTarget.querySelector('.filter-checkbox');
+    if (event.target !== checkbox) {
+        checkbox.checked = !checkbox.checked;
+    }
+}
+
+/**
+ * Select all filter values
+ */
+function selectAllFilters() {
+    const checkboxes = document.querySelectorAll('.filter-checkbox');
+    checkboxes.forEach(cb => cb.checked = true);
+}
+
+/**
+ * Clear all filter values
+ */
+function clearAllFilters() {
+    const checkboxes = document.querySelectorAll('.filter-checkbox');
+    checkboxes.forEach(cb => cb.checked = false);
+}
+
+/**
+ * Apply filters and update thread list
+ */
+function applyFilters() {
+    const checkboxes = document.querySelectorAll('.filter-checkbox:checked');
+
+    if (checkboxes.length === 0) {
+        // 无筛选条件，清除筛选
+        filteredThreadIds = null;
+        currentFilters = {};
+        renderSidebar();
+        console.log('[Filter] Cleared all filters');
+        return;
+    }
+
+    // 收集筛选条件
+    currentFilters = {};
+    checkboxes.forEach(cb => {
+        const field = cb.dataset.field;
+        const value = cb.dataset.value;
+
+        if (!currentFilters[field]) {
+            currentFilters[field] = [];
+        }
+        currentFilters[field].push(value);
+    });
+
+    // 筛选符合条件的 thread_id
+    const matchingThreadIds = new Set();
+
+    allCSVRows.forEach(row => {
+        let matches = true;
+
+        for (const [field, values] of Object.entries(currentFilters)) {
+            const rowValue = (row[field] || '').toString().trim();
+            if (!values.includes(rowValue)) {
+                matches = false;
+                break;
+            }
+        }
+
+        if (matches && row.thread_id) {
+            matchingThreadIds.add(row.thread_id);
+        }
+    });
+
+    filteredThreadIds = Array.from(matchingThreadIds);
+
+    console.log('[Filter] Applied filters:', currentFilters);
+    console.log('[Filter] Matching threads:', filteredThreadIds.length);
+
+    renderSidebar();
 }
 
 </script>
