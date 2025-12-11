@@ -233,9 +233,53 @@
 
         /* ==================== Filter Styles ==================== */
         .filter-container {
-            padding: 16px 20px;
             border-bottom: 1px solid var(--border-subtle);
             background: white;
+            transition: all 0.3s ease;
+        }
+
+        .filter-container.collapsed {
+            max-height: 0;
+            overflow: hidden;
+            border-bottom: none;
+        }
+
+        .filter-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            cursor: pointer;
+            background: #FAFAFA;
+            border-bottom: 1px solid var(--border-subtle);
+            transition: background 0.2s;
+        }
+
+        .filter-header:hover {
+            background: #F5F5F5;
+        }
+
+        .filter-header-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-toggle-icon {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.3s;
+        }
+
+        .filter-toggle-icon.expanded {
+            transform: rotate(180deg);
+        }
+
+        .filter-content {
+            padding: 16px 20px;
         }
 
         .filter-row {
@@ -254,13 +298,14 @@
 
         .filter-select {
             flex: 1;
-            padding: 8px 12px;
+            padding: 8px 32px 8px 12px;
             border: 1px solid var(--border-subtle);
             border-radius: var(--radius-sm);
             font-size: 0.85rem;
             font-family: var(--font-sans);
             color: var(--text-primary);
-            background: white;
+            background: white url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><path fill="%23666" d="M6 9L1 4h10z"/></svg>') no-repeat right 12px center;
+            appearance: none;
             cursor: pointer;
             transition: all 0.2s;
         }
@@ -273,6 +318,18 @@
             outline: none;
             border-color: var(--text-accent);
             box-shadow: 0 0 0 3px rgba(218, 119, 86, 0.1);
+        }
+
+        .filter-select optgroup {
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: #FAFAFA;
+            padding: 8px 0;
+        }
+
+        .filter-select option {
+            padding: 8px 12px;
+            color: var(--text-primary);
         }
 
         .filter-values {
@@ -1290,20 +1347,32 @@
 
                     <!-- 筛选器 -->
                     <div class="filter-container" id="filter-container" style="display: none;">
-                        <div class="filter-row">
-                            <span class="filter-label">筛选字段</span>
-                            <select class="filter-select" id="filter-field" onchange="onFilterFieldChange()">
-                                <option value="">选择字段...</option>
-                            </select>
+                        <div class="filter-header" onclick="toggleFilterPanel()">
+                            <div class="filter-header-title">
+                                <svg class="filter-toggle-icon" id="filter-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                                筛选器
+                            </div>
+                            <span id="filter-status" style="font-size: 0.75rem; color: var(--text-secondary);"></span>
                         </div>
 
-                        <div id="filter-values-container" style="display: none;">
-                            <div class="filter-values" id="filter-values"></div>
+                        <div class="filter-content" id="filter-content">
+                            <div class="filter-row">
+                                <span class="filter-label">筛选字段</span>
+                                <select class="filter-select" id="filter-field" onchange="onFilterFieldChange()">
+                                    <option value="">选择字段...</option>
+                                </select>
+                            </div>
 
-                            <div class="filter-actions">
-                                <button class="filter-btn" onclick="selectAllFilters()">全选</button>
-                                <button class="filter-btn" onclick="clearAllFilters()">清空</button>
-                                <button class="filter-btn filter-btn-primary" onclick="applyFilters()">应用筛选</button>
+                            <div id="filter-values-container" style="display: none;">
+                                <div class="filter-values" id="filter-values"></div>
+
+                                <div class="filter-actions">
+                                    <button class="filter-btn" onclick="selectAllFilters()">全选</button>
+                                    <button class="filter-btn" onclick="clearAllFilters()">清空</button>
+                                    <button class="filter-btn filter-btn-primary" onclick="applyFilters()">应用筛选</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -3184,6 +3253,25 @@ function formatFileSize(bytes) {
 
 // ==================== Filter Functions ====================
 
+let filterPanelExpanded = true; // 筛选面板展开状态
+
+/**
+ * Toggle filter panel
+ */
+function toggleFilterPanel() {
+    filterPanelExpanded = !filterPanelExpanded;
+    const filterContent = document.getElementById('filter-content');
+    const toggleIcon = document.getElementById('filter-toggle-icon');
+
+    if (filterPanelExpanded) {
+        filterContent.style.display = 'block';
+        toggleIcon.classList.add('expanded');
+    } else {
+        filterContent.style.display = 'none';
+        toggleIcon.classList.remove('expanded');
+    }
+}
+
 /**
  * Initialize filter UI with available CSV fields
  */
@@ -3200,16 +3288,59 @@ function initializeFilter() {
     const sampleRow = allCSVRows[0];
     const fields = Object.keys(sampleRow);
 
-    // 填充字段下拉列表
+    // 按字段分组（基础字段、用户字段等）
+    const basicFields = ['thread_id', 'timestamp', 'text', 'row_num'];
+    const imageFields = ['image_list'];
+    const otherFields = fields.filter(f => !basicFields.includes(f) && !imageFields.includes(f));
+
+    // 填充字段下拉列表（多级分组）
     filterField.innerHTML = '<option value="">选择字段...</option>';
-    fields.forEach(field => {
-        const option = document.createElement('option');
-        option.value = field;
-        option.textContent = field;
-        filterField.appendChild(option);
-    });
+
+    // 基础字段组
+    if (basicFields.some(f => fields.includes(f))) {
+        const basicGroup = document.createElement('optgroup');
+        basicGroup.label = '📋 基础字段';
+        basicFields.forEach(field => {
+            if (fields.includes(field)) {
+                const option = document.createElement('option');
+                option.value = field;
+                option.textContent = field;
+                basicGroup.appendChild(option);
+            }
+        });
+        filterField.appendChild(basicGroup);
+    }
+
+    // 媒体字段组
+    if (imageFields.some(f => fields.includes(f))) {
+        const mediaGroup = document.createElement('optgroup');
+        mediaGroup.label = '🖼️ 媒体字段';
+        imageFields.forEach(field => {
+            if (fields.includes(field)) {
+                const option = document.createElement('option');
+                option.value = field;
+                option.textContent = field;
+                mediaGroup.appendChild(option);
+            }
+        });
+        filterField.appendChild(mediaGroup);
+    }
+
+    // 其他字段组
+    if (otherFields.length > 0) {
+        const otherGroup = document.createElement('optgroup');
+        otherGroup.label = '📦 其他字段';
+        otherFields.forEach(field => {
+            const option = document.createElement('option');
+            option.value = field;
+            option.textContent = field;
+            otherGroup.appendChild(option);
+        });
+        filterField.appendChild(otherGroup);
+    }
 
     console.log('[Filter] Initialized with fields:', fields);
+    updateFilterStatus();
 }
 
 /**
@@ -3300,7 +3431,12 @@ function applyFilters() {
         filteredThreadIds = null;
         currentFilters = {};
         renderSidebar();
+        updateFilterStatus();
         console.log('[Filter] Cleared all filters');
+
+        // 自动收起面板
+        filterPanelExpanded = false;
+        toggleFilterPanel();
         return;
     }
 
@@ -3341,7 +3477,55 @@ function applyFilters() {
     console.log('[Filter] Matching threads:', filteredThreadIds.length);
 
     renderSidebar();
+    updateFilterStatus();
+
+    // 自动收起面板
+    if (filterPanelExpanded) {
+        filterPanelExpanded = false;
+        toggleFilterPanel();
+    }
 }
+
+/**
+ * Update filter status display
+ */
+function updateFilterStatus() {
+    const filterStatus = document.getElementById('filter-status');
+
+    if (!filterStatus) return;
+
+    if (filteredThreadIds !== null) {
+        const filterCount = Object.keys(currentFilters).length;
+        const resultCount = filteredThreadIds.length;
+        filterStatus.textContent = `${filterCount} 个筛选条件 · ${resultCount} 个结果`;
+        filterStatus.style.color = 'var(--text-accent)';
+    } else {
+        filterStatus.textContent = '未应用筛选';
+        filterStatus.style.color = 'var(--text-secondary)';
+    }
+}
+
+/**
+ * Setup click outside to collapse filter
+ */
+function setupFilterClickOutside() {
+    document.addEventListener('click', (event) => {
+        const filterContainer = document.getElementById('filter-container');
+        const filterContent = document.getElementById('filter-content');
+
+        // 如果面板已展开，且点击在筛选器外部
+        if (filterPanelExpanded && !filterContainer.contains(event.target)) {
+            filterPanelExpanded = false;
+            filterContent.style.display = 'none';
+            document.getElementById('filter-toggle-icon').classList.remove('expanded');
+        }
+    });
+}
+
+// 在页面加载时设置点击外部关闭
+document.addEventListener('DOMContentLoaded', () => {
+    setupFilterClickOutside();
+});
 
 </script>
 
